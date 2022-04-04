@@ -96,9 +96,13 @@ fn build_map(leaf: &Leaf, map: &mut Vec<Cell>, rng: &mut ThreadRng, map_width: u
         build_map(leaf.right_child.as_ref().unwrap(), map, rng, map_width, map_length);
         return;
     }
-    let door = rng.gen_range(leaf.x1..leaf.x2);
+
+    let door = if ((leaf.x1..leaf.x2).any(|i| { map[map_width * leaf.y1 + i].doors[2] })) {
+        leaf.x2 + 1
+    } else { rng.gen_range(leaf.x1..leaf.x2) };
+
     for i in (leaf.x1..leaf.x2) {
-        if i != door {
+        if i != door && !map[map_width * leaf.y1 + i].doors[2] {
             if (map_width * leaf.y2 + i < map_width * map_length) && leaf.y1 != 0 {
                 map[map_width * leaf.y1 - map_width + i].open_sides[2] = false;
                 map[map_width * leaf.y2 + i].open_sides[0] = false;
@@ -114,9 +118,13 @@ fn build_map(leaf: &Leaf, map: &mut Vec<Cell>, rng: &mut ThreadRng, map_width: u
         map[map_width * leaf.y1 + i].doors[0] = true;
         map[map_width * leaf.y2 - map_width + i].doors[2] = true;
     }
-    let door = rng.gen_range(leaf.y1..leaf.y2);
+
+    let door = if ((leaf.y1..leaf.y2).any(|i| { map[map_width * i + leaf.x1].doors[3] })) {
+        leaf.y2 + 1
+    } else { rng.gen_range(leaf.y1..leaf.y2) };
+
     for i in (leaf.y1..leaf.y2) {
-        if i != door {
+        if i != door && !map[map_width * i + leaf.x1].doors[3] {
             if map_width * i + leaf.x2 < map_width * map_length && leaf.x1 != 0 {
                 map[map_width * i + leaf.x1 - 1].open_sides[1] = false;
                 map[map_width * i + leaf.x2].open_sides[3] = false;

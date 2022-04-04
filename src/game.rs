@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::{GameState, Cell, levelgen, consts::{assets, MAP_SIZE_I, MAP_SIZE_J}};
+use crate::{GameState, Cell, levelgen, consts::{assets, MAP_SIZE_I, MAP_SIZE_J}, despawn_entities};
 
 const RESET_POS: [f32; 3] = [
     MAP_SIZE_I as f32 / 2.0,
@@ -7,7 +7,8 @@ const RESET_POS: [f32; 3] = [
     MAP_SIZE_J as f32 / 2.0,
 ];
 
-const MOVE_DELAY: f32 = 0.1;
+const MOVE_DELAY: f32 = 0.3;
+const CAMERA_OFFSET: [f32; 3] = [-5.0, 10.0, 1.0];
 
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
@@ -15,15 +16,20 @@ impl Plugin for GamePlugin {
         app
             .init_resource::<Game>()
             .add_system_set(
-                SystemSet::on_enter(GameState::Playing)
+                SystemSet::on_enter(GameState::Game)
                 .with_system(setup_cameras)
                 .with_system(setup)
                 .with_system(setup_level)
-                )
+            )
             .add_system_set(
-                SystemSet::on_update(GameState::Playing)
+                SystemSet::on_update(GameState::Game)
                 .with_system(move_player)
-                )
+                .with_system(focus_camera)
+            )
+            .add_system_set(
+                SystemSet::on_exit(GameState::Game)
+                .with_system(despawn_entities::<LevelTag>)
+            )
             ;
     }
 }
@@ -56,14 +62,13 @@ fn setup_cameras(
     game.camera_is_focus = game.camera_should_focus;
     commands.spawn_bundle(PerspectiveCameraBundle {
         transform: Transform::from_xyz(
-                       -(MAP_SIZE_I as f32 / 2.0),
-                       2.0 * MAP_SIZE_J as f32 / 3.0,
-                       MAP_SIZE_J as f32 / 2.0 - 0.5,
+                       (MAP_SIZE_I as f32 / 2.0) + CAMERA_OFFSET[0],
+                       CAMERA_OFFSET[1],
+                       MAP_SIZE_J as f32 / 2.0 + CAMERA_OFFSET[2],
                        )
             .looking_at(game.camera_is_focus, Vec3::Y),
-            ..Default::default()
+        ..Default::default()
     });
-    commands.spawn_bundle(UiCameraBundle::default());
 }
 
 fn setup(
@@ -117,65 +122,6 @@ fn setup(
         ..Default::default()
     });
 }
-
-fn move_player(
-    mut commands: Commands,
-    keyboard_input: Res<Input<KeyCode>>,
-    mut game: ResMut<Game>,
-    mut transforms: Query<&mut Transform>,
-    time: Res<Time>,
-    ) {
-    if game.player.move_cooldown.tick(time.delta()).finished() {
-        let mut moved = false;
-        let mut rotation = 0.0;
-
-        let player_pos = game.player.j * MAP_SIZE_I + game.player.i;
-
-        if keyboard_input.pressed(KeyCode::Up) {
-            if game.player.i < MAP_SIZE_I - 1 && game.map[player_pos].open_sides[1] {
-                game.player.i += 1;
-            }
-            rotation = -std::f32::consts::FRAC_PI_2;
-            moved = true;
-        }
-        if keyboard_input.pressed(KeyCode::Down) {
-            if game.player.i > 0 && game.map[player_pos].open_sides[3] {
-                game.player.i -= 1;
-            }
-            rotation = std::f32::consts::FRAC_PI_2;
-            moved = true;
-        }
-        if keyboard_input.pressed(KeyCode::Right) {
-            if game.player.j < MAP_SIZE_J - 1 && game.map[player_pos].open_sides[2] {
-                game.player.j += 1;
-            }
-            rotation = std::f32::consts::PI;
-            moved = true;
-        }
-        if keyboard_input.pressed(KeyCode::Left) {
-            if game.player.j > 0 && game.map[player_pos].open_sides[0] {
-                game.player.j -= 1;
-            }
-            rotation = 0.0;
-            moved = true;
-        }
-
-        // move on the board
-        if moved {
-            game.player.move_cooldown.reset();
-            *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
-                translation: Vec3::new(
-                                 game.player.i as f32,
-                                 game.map[game.player.j * MAP_SIZE_I + game.player.i].height,
-                                 game.player.j as f32,
-                                 ),
-                                 rotation: Quat::from_rotation_y(rotation),
-                                 ..Default::default()
-            };
-        }
-    }
-}
-
 fn setup_level(
     mut commands: Commands,
     mut game: ResMut<Game>,
@@ -289,4 +235,90 @@ fn setup_level(
         }
     }
     game.map = map;
+}
+
+fn move_player(
+    mut commands: Commands,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut game: ResMut<Game>,
+    mut transforms: Query<&mut Transform>,
+    time: Res<Time>,
+) {
+    if !game.player.move_cooldown.tick(time.delta()).finished() { return; }
+
+    let mut moved = false;
+    let mut rotation = 0.0;
+
+    let player_pos = game.player.j * MAP_SIZE_I + game.player.i;
+
+    if keyboard_input.pressed(KeyCode::Up) {
+        if game.player.i < MAP_SIZE_I - 1 && game.map[player_pos].open_sides[1] {
+            game.player.i += 1;
+        }
+        rotation = -std::f32::consts::FRAC_PI_2;
+        moved = true;
+    }
+    if keyboard_input.pressed(KeyCode::Down) {
+        if game.player.i > 0 && game.map[player_pos].open_sides[3] {
+            game.player.i -= 1;
+        }
+        rotation = std::f32::consts::FRAC_PI_2;
+        moved = true;
+    }
+    if keyboard_input.pressed(KeyCode::Right) {
+        if game.player.j < MAP_SIZE_J - 1 && game.map[player_pos].open_sides[2] {
+            game.player.j += 1;
+        }
+        rotation = std::f32::consts::PI;
+        moved = true;
+    }
+    if keyboard_input.pressed(KeyCode::Left) {
+        if game.player.j > 0 && game.map[player_pos].open_sides[0] {
+            game.player.j -= 1;
+        }
+        rotation = 0.0;
+        moved = true;
+    }
+
+    // move on the board
+    if !moved { return; }
+
+    game.player.move_cooldown.reset();
+    *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
+        translation: Vec3::new( game.player.i as f32, game.map[game.player.j * MAP_SIZE_I + game.player.i].height, game.player.j as f32),
+        rotation: Quat::from_rotation_y(rotation),
+        ..Default::default()
+    };
+}
+
+// change the focus of the camera
+fn focus_camera(
+    time: Res<Time>,
+    mut game: ResMut<Game>,
+    mut transforms: QuerySet<( QueryState<&mut Transform, With<Camera>>, QueryState<&Transform>,)>,
+) {
+    const SPEED: f32 = 2.0;
+    // if there is both a player and a bonus, target the mid-point of them
+    // otherwise, if there is only a player, target the player
+    if let Some(player_entity) = game.player.entity {
+        if let Ok(player_transform) = transforms.q1().get(player_entity) {
+            game.camera_should_focus = player_transform.translation;
+        }
+    // otherwise, target the middle
+    } else {
+        game.camera_should_focus = Vec3::from(RESET_POS);
+    }
+    // calculate the camera motion based on the difference between where the camera is looking
+    // and where it should be looking; the greater the distance, the faster the motion;
+    // smooth out the camera movement using the frame time
+    let mut camera_motion = game.camera_should_focus - game.camera_is_focus;
+    if camera_motion.length() > 0.2 {
+        camera_motion *= SPEED * time.delta_seconds();
+        // set the new camera's actual focus
+        game.camera_is_focus += camera_motion;
+    }
+    // look at that new camera's actual focus
+    for mut transform in transforms.q0().iter_mut() {
+        transform.translation = game.camera_is_focus + Vec3::from_slice(&CAMERA_OFFSET);
+    }
 }
