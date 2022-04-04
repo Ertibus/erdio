@@ -42,7 +42,7 @@ pub fn generate_level(
         (0..level_width).map(|i| {
             Cell {
                 open_sides: [j != 0, i != level_width - 1, j != level_length - 1, i != 0],
-                height: rng.gen_range(-0.1..0.1),
+                height: rng.gen_range(-0.05..0.05),
                 ..Default::default()
             }
         }).collect::<Vec<Cell>>()

@@ -7,6 +7,8 @@ const RESET_POS: [f32; 3] = [
     MAP_SIZE_J as f32 / 2.0,
 ];
 
+const MOVE_DELAY: f32 = 0.1;
+
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -72,19 +74,15 @@ fn setup(
     game.score = 0;
     game.player.i = MAP_SIZE_I / 2;
     game.player.j = MAP_SIZE_J / 2;
-    game.player.move_cooldown = Timer::from_seconds(0.3, false);
+    game.player.move_cooldown = Timer::from_seconds(MOVE_DELAY, false);
 
     game.player.entity = Some(
         commands
         .spawn_bundle((
                 Transform {
-                    translation: Vec3::new(
-                                     game.player.i as f32,
-                                     0.0,
-                                     game.player.j as f32,
-                                     ),
-                                     rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
-                                     ..Default::default()
+                    translation: Vec3::new(game.player.i as f32, 0.0, game.player.j as f32),
+                    rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+                    ..Default::default()
                 },
                 GlobalTransform::identity(),
         ))
@@ -93,6 +91,31 @@ fn setup(
         })
         .id(),
         );
+    // Spawn lights
+    let half_size: f32 = 4.0;
+    commands.spawn_bundle(DirectionalLightBundle {
+         transform: Transform {
+            translation: Vec3::new(0.0, 2.0, 0.0),
+            rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
+            ..Default::default()
+        },
+        directional_light: DirectionalLight {
+            color: Color::WHITE,
+            illuminance: 320.0,
+            shadows_enabled: false,
+            shadow_projection: OrthographicProjection {
+                left: -half_size,
+                right: half_size,
+                bottom: -half_size,
+                top: half_size,
+                near: -10.0 * half_size,
+                far: 10.0 * half_size,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 fn move_player(
@@ -106,29 +129,31 @@ fn move_player(
         let mut moved = false;
         let mut rotation = 0.0;
 
+        let player_pos = game.player.j * MAP_SIZE_I + game.player.i;
+
         if keyboard_input.pressed(KeyCode::Up) {
-            if game.player.i < MAP_SIZE_I - 1 {
+            if game.player.i < MAP_SIZE_I - 1 && game.map[player_pos].open_sides[1] {
                 game.player.i += 1;
             }
             rotation = -std::f32::consts::FRAC_PI_2;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::Down) {
-            if game.player.i > 0 {
+            if game.player.i > 0 && game.map[player_pos].open_sides[3] {
                 game.player.i -= 1;
             }
             rotation = std::f32::consts::FRAC_PI_2;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::Right) {
-            if game.player.j < MAP_SIZE_J - 1 {
+            if game.player.j < MAP_SIZE_J - 1 && game.map[player_pos].open_sides[2] {
                 game.player.j += 1;
             }
             rotation = std::f32::consts::PI;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::Left) {
-            if game.player.j > 0 {
+            if game.player.j > 0 && game.map[player_pos].open_sides[0] {
                 game.player.j -= 1;
             }
             rotation = 0.0;
