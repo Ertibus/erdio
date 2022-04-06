@@ -1,5 +1,5 @@
 use bevy::{app::AppExit, prelude::*};
-use crate::{despawn_entities, GameState};
+use crate::{despawn_entities, GameState, consts::fonts};
 
 const TEXT_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 const NORMAL_BUTTON: Color = Color::rgb(0.15, 0.15, 0.15);
@@ -58,7 +58,7 @@ fn menu_setup(mut menu_state: ResMut<State<MenuState>>) {
 }
 
 fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("fonts/SourceCodePro-Medium.ttf");
+    let font = asset_server.load(fonts::MAIN_FONT);
     // Common style for all buttons on the screen
     let button_style = Style {
         size: Size::new(Val::Px(250.0), Val::Px(64.0)),
@@ -104,7 +104,7 @@ fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
 
                     text: Text::with_section(
-                        "Erdio",
+                        "ErrIO",
                         TextStyle {
                             font: font.clone(),
                             font_size: 80.0,

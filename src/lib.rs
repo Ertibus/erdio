@@ -5,12 +5,16 @@ pub mod consts;
 pub mod levelgen;
 pub mod splash;
 pub mod menu;
+pub mod guard;
+pub mod pathfinding;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Cell {
-    open_sides: [bool; 4],
-    doors: [bool; 4],
-    height: f32,
+    pub open_sides: [bool; 4],
+    pub doors: [bool; 4],
+    pub height: f32,
+    pub i: usize,
+    pub j: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

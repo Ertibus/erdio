@@ -1242,7 +1242,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "erdio"
+name = "errio"
 version = "0.1.0"
 dependencies = [
  "bevy",

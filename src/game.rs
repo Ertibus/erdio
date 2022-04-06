@@ -1,5 +1,6 @@
-use bevy::prelude::*;
-use crate::{GameState, Cell, levelgen, consts::{assets, MAP_SIZE_I, MAP_SIZE_J}, despawn_entities};
+use bevy::{prelude::*, core::FixedTimestep};
+use crate::{GameState, Cell, levelgen, guard::GuardPlugin, consts::{fonts, assets, MAP_SIZE_I, MAP_SIZE_J}, despawn_entities};
+use rand::Rng;
 
 const RESET_POS: [f32; 3] = [
     MAP_SIZE_I as f32 / 2.0,
@@ -15,6 +16,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<Game>()
+            .add_plugin(GuardPlugin)
             .add_system_set(
                 SystemSet::on_enter(GameState::Game)
                 .with_system(setup_cameras)
@@ -25,11 +27,18 @@ impl Plugin for GamePlugin {
                 SystemSet::on_update(GameState::Game)
                 .with_system(move_player)
                 .with_system(focus_camera)
+                .with_system(rotate_bonus)
+                .with_system(scoreboard_system)
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::Game)
                 .with_system(despawn_entities::<LevelTag>)
             )
+            .add_system_set(
+                SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(5.0))
+                .with_system(spawn_bonus)
+           )
             ;
     }
 }
@@ -38,26 +47,35 @@ impl Plugin for GamePlugin {
 struct LevelTag;
 
 #[derive(Default)]
-struct Game {
-    map: Vec<Cell>,
-    player: Player,
-    score: i32,
+pub struct Game {
+    pub map: Vec<Cell>,
+    pub player: Player,
+    bonus: Bonus,
+    pub score: i32,
     camera_should_focus: Vec3,
     camera_is_focus: Vec3,
 }
 
 #[derive(Default)]
-struct Player {
+struct Bonus {
     entity: Option<Entity>,
     i: usize,
     j: usize,
+    handle: Handle<Scene>,
+}
+
+#[derive(Default)]
+pub struct Player {
+    entity: Option<Entity>,
+    pub i: usize,
+    pub j: usize,
     move_cooldown: Timer,
 }
 
 fn setup_cameras(
     mut commands: Commands,
     mut game: ResMut<Game>,
-    ) {
+) {
     game.camera_should_focus = Vec3::from(RESET_POS);
     game.camera_is_focus = game.camera_should_focus;
     commands.spawn_bundle(PerspectiveCameraBundle {
@@ -75,7 +93,7 @@ fn setup(
     mut commands: Commands,
     mut game: ResMut<Game>,
     asset_server: Res<AssetServer>,
-    ) {
+) {
     game.score = 0;
     game.player.i = MAP_SIZE_I / 2;
     game.player.j = MAP_SIZE_J / 2;
@@ -83,18 +101,18 @@ fn setup(
 
     game.player.entity = Some(
         commands
-        .spawn_bundle((
-                Transform {
-                    translation: Vec3::new(game.player.i as f32, 0.0, game.player.j as f32),
-                    rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
-                    ..Default::default()
-                },
-                GlobalTransform::identity(),
-        ))
-        .with_children(|cell| {
-            cell.spawn_scene(asset_server.load(assets::ALIEN));
-        })
-        .id(),
+            .spawn_bundle((
+                    Transform {
+                        translation: Vec3::new(game.player.i as f32, 0.0, game.player.j as f32),
+                        rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+                        ..Default::default()
+                    },
+                    GlobalTransform::identity(),
+            ))
+            .with_children(|cell| {
+                cell.spawn_scene(asset_server.load(assets::ALIEN));
+            })
+            .id(),
         );
     // Spawn lights
     let half_size: f32 = 4.0;
@@ -121,7 +139,35 @@ fn setup(
         },
         ..Default::default()
     });
+
+    // load the scene for the cake
+    game.bonus.handle = asset_server.load(assets::BONUS);
+
+    // scoreboard
+    commands.spawn_bundle(TextBundle {
+        text: Text::with_section(
+            "Score:",
+            TextStyle {
+                font: asset_server.load(fonts::MAIN_FONT),
+                font_size: 40.0,
+                color: Color::rgb(0.5, 0.5, 1.0),
+            },
+            Default::default(),
+        ),
+        style: Style {
+            position_type: PositionType::Absolute,
+            position: Rect {
+                top: Val::Px(5.0),
+                left: Val::Px(5.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
+
+
 fn setup_level(
     mut commands: Commands,
     mut game: ResMut<Game>,
@@ -132,7 +178,7 @@ fn setup_level(
     let wall_scene: Handle<Scene> = asset_server.load(assets::WALL);
     let door_scene: Handle<Scene> = asset_server.load(assets::DOOR);
     //
-    let map: Vec<Cell> = levelgen::generate_level(MAP_SIZE_I, MAP_SIZE_J, 10, 3);
+    let map: Vec<Cell> = levelgen::generate_level(MAP_SIZE_I, MAP_SIZE_J, 14, 3);
     for j in 0..MAP_SIZE_J {
         for i in 0..MAP_SIZE_I {
             let cell: &Cell = &map[MAP_SIZE_I * j + i];
@@ -283,12 +329,23 @@ fn move_player(
     // move on the board
     if !moved { return; }
 
+    //println!("{}:{}", game.player.i, game.player.j);
+    println!("{:?}", game.map[game.player.j * MAP_SIZE_I + game.player.i]);
     game.player.move_cooldown.reset();
     *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
         translation: Vec3::new( game.player.i as f32, game.map[game.player.j * MAP_SIZE_I + game.player.i].height, game.player.j as f32),
         rotation: Quat::from_rotation_y(rotation),
         ..Default::default()
     };
+
+    // eat the cake!
+    if let Some(entity) = game.bonus.entity {
+        if game.player.i == game.bonus.i && game.player.j == game.bonus.j {
+            game.score += 2;
+            commands.entity(entity).despawn_recursive();
+            game.bonus.entity = None;
+        }
+    }
 }
 
 // change the focus of the camera
@@ -320,5 +377,73 @@ fn focus_camera(
     // look at that new camera's actual focus
     for mut transform in transforms.q0().iter_mut() {
         transform.translation = game.camera_is_focus + Vec3::from_slice(&CAMERA_OFFSET);
+    }
+}
+
+fn spawn_bonus(
+    mut state: ResMut<State<GameState>>,
+    mut commands: Commands,
+    mut game: ResMut<Game>,
+) {
+    if *state.current() != GameState::Game || game.bonus.entity.is_some() {
+        return;
+    }
+    loop {
+        game.bonus.i = rand::thread_rng().gen_range(0..MAP_SIZE_I);
+        game.bonus.j = rand::thread_rng().gen_range(0..MAP_SIZE_J);
+        if game.bonus.i != game.player.i || game.bonus.j != game.player.j {
+            break;
+        }
+    }
+    game.bonus.entity = Some(
+        commands
+            .spawn_bundle((
+                Transform {
+                    translation: Vec3::new(
+                        game.bonus.i as f32,
+                        game.map[game.bonus.j * MAP_SIZE_I + game.bonus.i].height,
+                        game.bonus.j as f32,
+                    ),
+                    ..Default::default()
+                },
+                GlobalTransform::identity(),
+            ))
+            .with_children(|children| {
+                children.spawn_bundle(PointLightBundle {
+                    point_light: PointLight {
+                        color: Color::rgb(1.0, 1.0, 0.0),
+                        intensity: 100.0,
+                        range: 10.0,
+                        ..Default::default()
+                    },
+                    transform: Transform::from_xyz(0.0, 2.0, 0.0),
+                    ..Default::default()
+                });
+                children.spawn_scene(game.bonus.handle.clone());
+            })
+            .id(),
+    );
+}
+
+// let the case turn on itself
+fn rotate_bonus(game: Res<Game>, time: Res<Time>, mut transforms: Query<&mut Transform>) {
+    if let Some(entity) = game.bonus.entity {
+        if let Ok(mut transform) = transforms.get_mut(entity) {
+            transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+            transform.scale = Vec3::splat( 1.0 + (game.score as f32 / 10.0 * time.seconds_since_startup().sin() as f32).abs(),);
+        }
+    }
+}
+
+// update the score displayed during the game
+fn scoreboard_system(game: Res<Game>, mut query: Query<&mut Text>) {
+    let mut text = query.single_mut();
+    text.sections[0].value = format!("Intel collected: {}", game.score);
+}
+
+// restart the game when pressing spacebar
+fn gameover_keyboard(mut state: ResMut<State<GameState>>, keyboard_input: Res<Input<KeyCode>>) {
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        state.set(GameState::Game).unwrap();
     }
 }
