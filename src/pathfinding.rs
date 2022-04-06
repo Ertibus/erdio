@@ -1,6 +1,6 @@
 use crate::{ game::Game, Cell, consts::{MAP_SIZE_I, MAP_SIZE_J}};
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Clone)]
 struct PathNode {
     cell: Cell,
     g_cost: i32,
@@ -10,14 +10,14 @@ struct PathNode {
 }
 
 const DIRECTIONAL_ARRAY_X: [i32; 4] = [ 0, 1, 0,-1];
-const DIRECTIONAL_ARRAY_Y: [i32; 4] = [-1, 0,-1, 0];
+const DIRECTIONAL_ARRAY_Y: [i32; 4] = [-1, 0, 1, 0];
 const DIST_BETWEEN: i32 = 10;
 
 fn heuristic(a: &Cell, b: &Cell) -> i32 {
-    let diff_i: i32 = (a.i as i32 - b.i as i32).abs();
-    let diff_j: i32 = (a.j as i32 - b.j as i32).abs();
-    ////diff_i.min(diff_j) * DIST_BETWEEN + (diff_i - diff_j).abs() * (DIST_BETWEEN as f32 * DIST_BETWEEN as f32).sqrt() as i32 // Diagonal movement
-    diff_i + diff_j
+    let diff_x: i32 = (a.i as i32 - b.i as i32).abs();
+    let diff_y: i32 = (a.j as i32 - b.j as i32).abs();
+    //diff_x.min(diff_y) * DIST_BETWEEN + (diff_x - diff_y).abs() * (DIST_BETWEEN as f32 * DIST_BETWEEN as f32).sqrt() as i32 // Diagonal movement
+    diff_x + diff_y
 }
 
 pub fn find_path(game: &Game, start_cell: &Cell, end_cell: &Cell) -> Option<Vec<Cell>> {
@@ -62,31 +62,30 @@ pub fn find_path(game: &Game, start_cell: &Cell, end_cell: &Cell) -> Option<Vec<
         }
 
         // Find neighbors
-        for x in 0..4 {
-            let i = current.cell.i as i32 + DIRECTIONAL_ARRAY_X[x];
-            let j = current.cell.j as i32 + DIRECTIONAL_ARRAY_Y[x];
+        for i in 0..4 {
+            let x = current.cell.i as i32 + DIRECTIONAL_ARRAY_X[i];
+            let y = current.cell.j as i32 + DIRECTIONAL_ARRAY_Y[i];
 
-            if i < 0
-               || i >= MAP_SIZE_I as i32
-               || j < 0
-               || j >= MAP_SIZE_J as i32
-               || closed_set.iter().any(|node| node.cell == game.map[j as usize * MAP_SIZE_I + i as usize])
-               || !game.map[j as usize * MAP_SIZE_I + i as usize].open_sides[x]
+            if x < 0
+               || x >= MAP_SIZE_I as i32
+               || y < 0
+               || y >= MAP_SIZE_J as i32
+               || closed_set.iter().any(|node| node.cell == game.map[y as usize * MAP_SIZE_I + x as usize])
+               || !game.map[current.cell.j as usize * MAP_SIZE_I + current.cell.i as usize].open_sides[i]
                {
-                println!("NOT OPEN, WHEN {} AND {:?}", x, game.map[j as usize * MAP_SIZE_I + i as usize]);
                 continue;
             }
 
             let tentative_g_score = current.g_cost + DIST_BETWEEN; // Orthogonal movement
 
-            if let Some(neighbor) = open_set.iter().find(|&node| node.cell == game.map[j as usize * MAP_SIZE_I + i as usize]) {
+            if let Some(neighbor) = open_set.iter().find(|&node| node.cell == game.map[y as usize * MAP_SIZE_I + x as usize]) {
                 if neighbor.g_cost <= tentative_g_score {
                     continue;
                 }
             } else {
-                let h_score = heuristic(&game.map[j as usize * MAP_SIZE_I + i as usize], &end_node.cell);
+                let h_score = heuristic(&game.map[y as usize * MAP_SIZE_I + x as usize], &end_node.cell);
                 let neighbor: PathNode = PathNode {
-                    cell: game.map[j as usize * MAP_SIZE_I + i as usize].clone(),
+                    cell: game.map[y as usize * MAP_SIZE_I + x as usize].clone(),
                     g_cost: tentative_g_score,
                     h_cost: h_score,
                     f_cost: tentative_g_score + h_score,

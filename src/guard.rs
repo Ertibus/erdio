@@ -26,7 +26,7 @@ impl Plugin for GuardPlugin {
             .add_startup_system(setup_guards)
             .add_system_set(
                 SystemSet::new()
-                    .with_run_criteria(FixedTimestep::step(3.0))
+                    .with_run_criteria(FixedTimestep::step(1.0))
                     .with_system(patrol)
             )
             .add_system_set(
@@ -68,7 +68,6 @@ fn patrol(
                     &game.map[guard.j * MAP_SIZE_I + guard.i],
                     &game.map[guard.patrol_points[guard.pp].1 * MAP_SIZE_I + guard.patrol_points[guard.pp].0],
                 );
-                println!("{}:{} {}:{} {:?}", guard.i, guard.j, guard.patrol_points[guard.pp].0, guard.patrol_points[guard.pp].1, guard.current_path);
             },
             Some(path) => {
                 let cell = path.pop().unwrap();
@@ -108,7 +107,7 @@ fn spawn_guard(
     mut game: ResMut<Game>,
     mut guards: ResMut<GuardRoster>,
 ){
-    if (guards.guards.len() * 8 <= game.score as usize) {
+    if (guards.guards.len() * 4 <= game.score as usize) {
         let mut guard: Guard = Guard::default();
         let mut patrol: Vec<(usize, usize)> = Vec::new();
         for _ in (0..rand::thread_rng().gen_range(2..=4)) {

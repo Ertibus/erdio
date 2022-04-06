@@ -329,8 +329,8 @@ fn move_player(
     // move on the board
     if !moved { return; }
 
-    //println!("{}:{}", game.player.i, game.player.j);
-    println!("{:?}", game.map[game.player.j * MAP_SIZE_I + game.player.i]);
+    println!("{}:{}", game.player.i, game.player.j);
+    //println!("{:?}", game.map[game.player.j * MAP_SIZE_I + game.player.i]);
     game.player.move_cooldown.reset();
     *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
         translation: Vec3::new( game.player.i as f32, game.map[game.player.j * MAP_SIZE_I + game.player.i].height, game.player.j as f32),
@@ -338,10 +338,9 @@ fn move_player(
         ..Default::default()
     };
 
-    // eat the cake!
     if let Some(entity) = game.bonus.entity {
         if game.player.i == game.bonus.i && game.player.j == game.bonus.j {
-            game.score += 2;
+            game.score += 1;
             commands.entity(entity).despawn_recursive();
             game.bonus.entity = None;
         }
