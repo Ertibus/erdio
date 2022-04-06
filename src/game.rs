@@ -1,6 +1,8 @@
-use bevy::{prelude::*, core::FixedTimestep};
+use bevy::{prelude::*, core::FixedTimestep, render::render_resource::std140::Std140};
 use crate::{GameState, Cell, levelgen, guard::GuardPlugin, consts::{fonts, assets, MAP_SIZE_I, MAP_SIZE_J}, despawn_entities};
 use rand::Rng;
+use std::{fs::File, io::Read};
+use std::io::{Write, BufReader, BufRead, Error};
 
 const RESET_POS: [f32; 3] = [
     MAP_SIZE_I as f32 / 2.0,
@@ -31,20 +33,32 @@ impl Plugin for GamePlugin {
                 .with_system(scoreboard_system)
             )
             .add_system_set(
-                SystemSet::on_exit(GameState::Game)
-                .with_system(despawn_entities::<LevelTag>)
-            )
-            .add_system_set(
                 SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(5.0))
                 .with_system(spawn_bonus)
            )
+            .add_system_set(
+                SystemSet::on_enter(GameState::GameOver)
+                .with_system(display_score)
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::GameOver)
+                .with_system(gameover_keyboard)
+            )
+            .add_system_set(
+                SystemSet::on_exit(GameState::GameOver)
+                .with_system(despawn_entities::<GameOverTag>)
+                .with_system(despawn_entities::<LevelTag>)
+            )
             ;
     }
 }
 
 #[derive(Component)]
 struct LevelTag;
+
+#[derive(Component)]
+struct GameOverTag;
 
 #[derive(Default)]
 pub struct Game {
@@ -112,8 +126,10 @@ fn setup(
             .with_children(|cell| {
                 cell.spawn_scene(asset_server.load(assets::ALIEN));
             })
+            .insert(LevelTag)
             .id(),
         );
+    game.bonus = Bonus::default();
     // Spawn lights
     let half_size: f32 = 4.0;
     commands.spawn_bundle(DirectionalLightBundle {
@@ -138,9 +154,9 @@ fn setup(
             ..Default::default()
         },
         ..Default::default()
-    });
+    }).insert(LevelTag);
 
-    // load the scene for the cake
+    // load the scene for the intel
     game.bonus.handle = asset_server.load(assets::BONUS);
 
     // scoreboard
@@ -164,7 +180,7 @@ fn setup(
             ..Default::default()
         },
         ..Default::default()
-    });
+    }).insert(LevelTag);
 }
 
 
@@ -178,7 +194,7 @@ fn setup_level(
     let wall_scene: Handle<Scene> = asset_server.load(assets::WALL);
     let door_scene: Handle<Scene> = asset_server.load(assets::DOOR);
     //
-    let map: Vec<Cell> = levelgen::generate_level(MAP_SIZE_I, MAP_SIZE_J, 14, 3);
+    let map: Vec<Cell> = levelgen::generate_level(MAP_SIZE_I, MAP_SIZE_J, 7, 3);
     for j in 0..MAP_SIZE_J {
         for i in 0..MAP_SIZE_I {
             let cell: &Cell = &map[MAP_SIZE_I * j + i];
@@ -329,7 +345,7 @@ fn move_player(
     // move on the board
     if !moved { return; }
 
-    println!("{}:{}", game.player.i, game.player.j);
+    //println!("{}:{}", game.player.i, game.player.j);
     //println!("{:?}", game.map[game.player.j * MAP_SIZE_I + game.player.i]);
     game.player.move_cooldown.reset();
     *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
@@ -407,15 +423,16 @@ fn spawn_bonus(
                 },
                 GlobalTransform::identity(),
             ))
+            .insert(LevelTag)
             .with_children(|children| {
                 children.spawn_bundle(PointLightBundle {
                     point_light: PointLight {
                         color: Color::rgb(1.0, 1.0, 0.0),
-                        intensity: 100.0,
+                        intensity: 5.0,
                         range: 10.0,
                         ..Default::default()
                     },
-                    transform: Transform::from_xyz(0.0, 2.0, 0.0),
+                    transform: Transform::from_xyz(0.0, 0.2, 0.0),
                     ..Default::default()
                 });
                 children.spawn_scene(game.bonus.handle.clone());
@@ -445,4 +462,44 @@ fn gameover_keyboard(mut state: ResMut<State<GameState>>, keyboard_input: Res<In
     if keyboard_input.just_pressed(KeyCode::Space) {
         state.set(GameState::Game).unwrap();
     }
+}
+fn display_score(mut commands: Commands, asset_server: Res<AssetServer>, game: Res<Game>) {
+    let path = "highscore.txt";
+    let mut highscore: i32 = 0;
+    if std::path::Path::new(path).exists() {
+        let mut input = File::open(path).expect("Unable to open highscore");
+        let buffered = BufReader::new(input);
+        for line in buffered.lines() {
+            highscore = line.expect("Failed to read").trim().parse().expect("Failed to parse")
+        }
+    }
+    highscore = if highscore < game.score { game.score } else { highscore };
+    let mut output = File::create(path).expect("Unable to create highscore");
+    output.write(highscore.to_string().as_bytes());
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                margin: Rect::all(Val::Auto),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            color: Color::NONE.into(),
+            ..Default::default()
+        })
+        .insert(GameOverTag)
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle {
+                text: Text::with_section(
+                    format!("Intel Collected: {}\nHigh Score: {}", game.score, highscore),
+                    TextStyle {
+                        font: asset_server.load(fonts::MAIN_FONT),
+                        font_size: 80.0,
+                        color: Color::rgb(0.5, 0.5, 1.0),
+                    },
+                    Default::default(),
+                ),
+                ..Default::default()
+            });
+        });
 }

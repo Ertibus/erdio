@@ -104,7 +104,6 @@ fn build_map(leaf: &Leaf, map: &mut Vec<Cell>, rng: &mut ThreadRng, map_width: u
         leaf.x2 + 1
     } else { rng.gen_range((leaf.x1 + 1)..(leaf.x2 - 1)) };
 
-    
     // BUILD LEFT/RIGHT WALL
     for i in (leaf.x1..leaf.x2) {
         if (map_width * leaf.y2 + i < map_width * map_length) {
@@ -115,15 +114,16 @@ fn build_map(leaf: &Leaf, map: &mut Vec<Cell>, rng: &mut ThreadRng, map_width: u
             map[map_width * leaf.y1 - map_width + i].open_sides[2] = i == door;
             map[map_width * leaf.y1 - map_width + i].doors[2] = i == door;
         }
-        if (map_width * leaf.y2 + map_width + i < map_width * map_length) { 
+        if (map_width * leaf.y2 + map_width + i < map_width * map_length) {
             map[map_width * leaf.y2 + i].open_sides[0] = i == door;
             map[map_width * leaf.y2 + i].doors[0] = i == door;
         }
         map[map_width * leaf.y1 + i].open_sides[0] = i == door;
         map[map_width * leaf.y1 + i].doors[0] = i == door;
     }
-    let door = if ((leaf.y1..leaf.y2).any(|i| { map[map_width * i + leaf.x2].doors[3] })) {
-        leaf.y2 + 1
+    let door = if ((leaf.y1..(leaf.y2 - 1)).any(|i| { map[map_width * i + leaf.x2].doors[3] })) {
+        if rng.gen() { return; }
+        else { map_length } 
     } else { rng.gen_range((leaf.y1 + 1)..(leaf.y2 - 1)) };
     // BUILD UP/DOWN WALL
     for i in (leaf.y1..leaf.y2) {
@@ -141,29 +141,3 @@ fn build_map(leaf: &Leaf, map: &mut Vec<Cell>, rng: &mut ThreadRng, map_width: u
         map[map_width * i + leaf.x1].doors[3] = i == door;
     }
 }
-    //for i in (leaf.y1..leaf.y2) {
-        //if map_width * i + leaf.x2 < map_width * map_length - 1 && leaf.x1 != 0 {
-            //map[map_width * i + leaf.x1 - 1].open_sides[1] = i == door;
-            //map[map_width * i + leaf.x2].open_sides[3] = i == door;
-            //map[map_width * i + leaf.x1 - 1].doors[1] = i == door;
-            //map[map_width * i + leaf.x2].doors[3] = i == door;
-        //}
-        //map[map_width * i + leaf.x1].open_sides[3] = i == door;
-        //map[map_width * i + leaf.x1].doors[3] = i == door;
-        //map[map_width * i + leaf.x2 - 1].doors[1] = i == door;
-        //continue;
-    //}
-    //for i in (leaf.x1..leaf.x2) {
-        //if (map_width * leaf.y2 + i < map_width * map_length) && leaf.y1 != 0 {
-            //map[map_width * leaf.y1 - map_width + i].open_sides[0] = i == door;
-            //map[map_width * leaf.y2 + i].open_sides[2] = i == door;
-            //map[map_width * leaf.y1 - map_width + i].doors[2] = i == door;
-            //map[map_width * leaf.y2 + i].doors[0] = i == door;
-        //}
-        //map[map_width * leaf.y1 + i].open_sides[2] = i == door;
-        //map[map_width * leaf.y2 - map_width + i].open_sides[0] = i == door;
-        //map[map_width * leaf.y1 + i].doors[0] = i == door;
-        //map[map_width * leaf.y2 - map_width + i].doors[2] = i == door;
-        //continue;
-    //}
-

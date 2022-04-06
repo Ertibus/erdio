@@ -21,7 +21,8 @@ pub struct Cell {
 pub enum GameState {
     Game,
     Menu,
-    Splash
+    Splash,
+    GameOver,
 }
 
 // Generic system that takes a component as a parameter, and will despawn all entities with that component
