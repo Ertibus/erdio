@@ -79,7 +79,6 @@ fn patrol(
                     &game.map[guard.j * MAP_SIZE_I + guard.i],
                     &game.map[guard.patrol_points[guard.pp].1 * MAP_SIZE_I + guard.patrol_points[guard.pp].0],
                 );
-                println!("{:?}", guard.patrol_points);
             },
             Some(path) => {
                 let cell = path.pop().unwrap();
